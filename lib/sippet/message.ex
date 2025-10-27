@@ -31,7 +31,7 @@ defmodule Sippet.Message do
 
   @type token :: binary
 
-  @type params :: %{binary => binary}
+  @type params :: %{binary => binary} | [{binary, binary}]
 
   @type token_params ::
           {token :: binary, params}
@@ -1487,6 +1487,17 @@ defmodule Sippet.Message do
     ]
   end
 
+  defp do_header_value({display_name, %URI{} = uri, parameters})
+       when is_binary(display_name) and is_list(parameters) do
+    [
+      if(display_name == "", do: "", else: ["\"", display_name, "\" "]),
+      "<",
+      URI.to_string(uri),
+      ">",
+      do_parameters(parameters)
+    ]
+  end
+
   defp do_header_value({delta_seconds, comment, %{} = parameters})
        when is_integer(delta_seconds) and is_binary(comment) do
     [
@@ -1597,13 +1608,16 @@ defmodule Sippet.Message do
   defp do_parameters(%{} = parameters),
     do: do_parameters(Map.to_list(parameters), [])
 
-  defp do_parameters([], result), do: result
+  defp do_parameters(parameters) when is_list(parameters),
+    do: do_parameters(parameters, [])
+
+  defp do_parameters([], result), do: result |> Enum.reverse()
 
   defp do_parameters([{name, ""} | tail], result),
-    do: do_parameters(tail, [";", name | result])
+    do: do_parameters(tail, [name, ";" | result])
 
   defp do_parameters([{name, value} | tail], result),
-    do: do_parameters(tail, [";", name, "=", do_maybe_double_quote(value) | result])
+    do: do_parameters(tail, [do_maybe_double_quote(value), "=", name, ";" | result])
 
   defp do_maybe_double_quote(value) do
     if String.contains?(value, [" ", "\t", "\""]) do
